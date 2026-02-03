@@ -1,0 +1,19 @@
+# --- Dependencies ---
+node_modules/
+.pnpm-store/
+
+# --- Supabase & Local DB ---
+supabase/.temp/
+supabase/.branches/
+
+# --- Environment & Secrets ---
+.env
+.env*.local
+.env.keys
+.env.me
+
+# --- Editor & OS ---
+.vscode/
+.DS_Store
+dist/
+build/

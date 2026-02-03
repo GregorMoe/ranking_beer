@@ -71,6 +71,19 @@ th, td {
 </form>
 
 
+<style>
+  body { font-family: Arial, sans-serif; padding: 20px; }
+  input { width: 300px; padding: 5px; }
+  button { padding: 5px 10px; margin-left: 10px; }
+  #result { margin-top: 20px; }
+</style>
+
+<h2>Add a Beer from Untappd</h2>
+<input type="text" id="untappdUrl" placeholder="Paste Untappd beer URL" />
+<button id="addBeerBtn">Add Beer</button>
+
+<div id="result"></div>
+
 <table id="log">
 <thead>
 <tr>
@@ -90,9 +103,29 @@ th, td {
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <script>
+
 const SUPABASE_URL = 'https://xvmgtbvyhltnqzzbxvnc.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_4MZBvhrvtDRaf2HgiXOUHg_-PEvT_Qp';
 const supabaseInstance = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const addBeerBtn = document.getElementById("addBeerBtn");
+const untappdUrlInput = document.getElementById("untappdUrl");
+const resultDiv = document.getElementById("result");
+
+addBeerBtn.addEventListener("click", async () => {
+  const url = untappdUrlInput.value.trim();
+  if (!url) {
+    resultDiv.textContent = "Please enter a valid Untappd URL.";
+    return;
+  }
+
+  resultDiv.textContent = "Checking Untappd...";
+  
+  const { data, error } = await supabaseInstance.functions.invoke('hello-world', {
+    body: { name: 'prod' },
+  })
+  console.log(data)
+} );
 
 let data = [];
 let cumulativeVolume = 0;
