@@ -130,8 +130,6 @@ th, td {
   <!-- Buttons -->
   <div style="margin-top: 10px;">
     <button type="submit">Add drink</button>
-    <button type="button" id="download">Export CSV</button>
-    <button type="button" id="clear">Clear</button>
   </div>
 </form>
 
@@ -536,28 +534,6 @@ form.onsubmit = async (e) => {
   document.getElementById("rating").value = "";
   beerInput.value = "";
   beerInput.focus();
-};
-
-// ---------- export / clear ----------
-document.getElementById("download").onclick = () => {
-  if (!data.length) return alert("Nothing to export yet.");
-
-  const header = Object.keys(data[0]).join(",");
-  const rows = data.map(r => Object.values(r).join(","));
-  const csv = [header, ...rows].join("\n");
-
-  const blob = new Blob([csv], { type: "text/csv" });
-  const url = URL.createObjectURL(blob);
-
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "beer_ratings.csv";
-  a.click();
-};
-
-document.getElementById("clear").onclick = () => {
-  data = [];
-  render();
 };
 </script>
 
