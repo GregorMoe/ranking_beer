@@ -36,6 +36,57 @@ th, td {
   text-align: center;
 }
 
+.beer-admin{
+  display:grid;
+  grid-template-columns: repeat(4, minmax(180px, 1fr));
+  gap: 12px;
+  align-items:end;
+}
+
+.beer-admin .field{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+}
+
+.beer-admin input,
+.beer-admin select{
+  width:100%;
+  box-sizing:border-box;
+  padding:6px;
+}
+
+.beer-admin .actions{
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+
+/* ABV + actions row on wide screens */
+.beer-admin .abv{
+  grid-column: 1 / 2;
+}
+.beer-admin .actions{
+  grid-column: 2 / -1;
+}
+
+/* Responsive: stack nicely on smaller screens */
+@media (max-width: 900px){
+  .beer-admin{
+    grid-template-columns: repeat(2, minmax(180px, 1fr));
+  }
+  .beer-admin .abv,
+  .beer-admin .actions{
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 520px){
+  .beer-admin{
+    grid-template-columns: 1fr;
+  }
+}
+
 </style>
 </head>
 <body>
@@ -44,23 +95,37 @@ th, td {
 <form id="entryForm">
   <!-- Drinker row -->
   <div style="margin-bottom: 10px;">
-    <label for="drinker">Drinker:</label>
-    <input type="text" id="drinker" placeholder="Your name" required>
+  <label for="drinker">Drinker:</label><br />
+
+  <input type="text" id="drinker" placeholder="Your name" style="width: 100%;">
+
+  <div id="drinkerStatus"
+       style="font-size: 12px; margin-top: 4px; color:#555;">
   </div>
+
+  <div style="margin-top: 6px;">
+    <button type="button" id="lockDrinkerBtn">Lock</button>
+    <button type="button" id="changeDrinkerBtn" style="display:none;">
+      Change
+    </button>
+  </div>
+</div>
 
   <!-- Beer, Volume, Rating row -->
   <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
-    <select id="beer">
-      <option>Lager</option>
-      <option>IPA</option>
-      <option>Stout</option>
-      <option>Sour</option>
-      <option>Pilsner</option>
-    </select>
-
-    <input type="number" id="volume" placeholder="Volume (ml)" min="0" required>
-    <input type="number" id="rating" placeholder="Rating (0–10)" step="0.1" min="0" max="10" required>
+    <input
+      type="text"
+      id="beer"
+      list="beerOptions"
+      placeholder="Beer name"
+      autocomplete="off"
+      required
+    />
+    <datalist id="beerOptions"></datalist>
   </div>
+
+  <input type="number" id="volume" placeholder="Volume (ml)" min="0" required>
+  <input type="number" id="rating" placeholder="Rating (0–10)" step="0.1" min="0" max="10" required>
 
   <!-- Buttons -->
   <div style="margin-top: 10px;">
@@ -78,107 +143,324 @@ th, td {
   #result { margin-top: 20px; }
 </style>
 
-<h2>Add a Beer from Untappd</h2>
-<input type="text" id="untappdUrl" placeholder="Paste Untappd beer URL" />
-<button id="addBeerBtn">Add Beer</button>
-
-<div id="result"></div>
-
 <table id="log">
 <thead>
 <tr>
   <th>n</th>
   <th>Drinker</th>
   <th>Beer</th>
-  <th>Volume kₙ</th>
-  <th>Σ volume</th>
-  <th>Yₙ₋₁</th>
-  <th>Rating Yₙ</th>
+  <th>Volume</th>
+  <th>Rating</th>
 </tr>
 </thead>
 <tbody></tbody>
 </table>
 
+<hr style="margin: 30px 0;" />
+
+<h2>Add Beer to Database</h2>
+
+<form id="beerAdminForm" class="beer-admin">
+  <div class="field">
+    <label for="beerName">Beer name</label>
+    <input id="beerName" type="text" placeholder="e.g., Two Hearted Ale" required />
+  </div>
+
+  <div class="field">
+    <label for="breweryName">Brewery</label>
+    <input id="breweryName" type="text" placeholder="e.g., Bell's" required />
+  </div>
+
+  <div class="field">
+    <label for="beerStyle">Style</label>
+    <input id="beerStyle" type="text" placeholder="e.g., American IPA" required />
+  </div>
+
+  <div class="field">
+    <label for="priceClass">Price class</label>
+    <select id="priceClass" required>
+      <option value="cheap">Cheap</option>
+      <option value="medium" selected>Medium</option>
+      <option value="expensive">Expensive</option>
+    </select>
+  </div>
+
+  <div class="field abv">
+    <label for="beerAbv">ABV (%)</label>
+    <input id="beerAbv" type="number" step="0.1" min="0" max="50" placeholder="e.g., 7.0" required />
+  </div>
+
+  <div class="actions">
+    <button type="submit">Add beer</button>
+    <span id="beerAdminStatus" style="margin-left:10px;"></span>
+  </div>
+</form>
+
+
 <!-- <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/supabase.min.js"></script> -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <script>
-
+  
 const SUPABASE_URL = 'https://xvmgtbvyhltnqzzbxvnc.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_4MZBvhrvtDRaf2HgiXOUHg_-PEvT_Qp';
 const supabaseInstance = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-const addBeerBtn = document.getElementById("addBeerBtn");
-const untappdUrlInput = document.getElementById("untappdUrl");
-const resultDiv = document.getElementById("result");
 
-addBeerBtn.addEventListener("click", async () => {
-  const url = untappdUrlInput.value.trim();
-  if (!url) {
-    resultDiv.textContent = "Please enter a valid Untappd URL.";
+// ---- Drinker lock + persistence ----
+const DRINKER_STORAGE_KEY = "beers.drinkerName";
+
+const drinkerInput = document.getElementById("drinker");
+const drinkerStatus = document.getElementById("drinkerStatus");
+const lockDrinkerBtn = document.getElementById("lockDrinkerBtn");
+const changeDrinkerBtn = document.getElementById("changeDrinkerBtn");
+
+let isDrinkerLocked = false;
+
+function normalizeName(s) {
+  return (s ?? "").trim().replace(/\s+/g, " ");
+}
+
+function setLockedUI(locked) {
+  isDrinkerLocked = locked;
+
+  drinkerInput.disabled = locked;
+  lockDrinkerBtn.style.display = locked ? "none" : "inline-block";
+  changeDrinkerBtn.style.display = locked ? "inline-block" : "none";
+
+  if (locked) {
+    drinkerStatus.textContent = `Locked in as: ${drinkerInput.value}`;
+  } else {
+    drinkerStatus.textContent = "Set your name and lock it in.";
+  }
+}
+
+function loadDrinkerFromStorage() {
+  const saved = localStorage.getItem(DRINKER_STORAGE_KEY);
+  if (saved) {
+    drinkerInput.value = saved;
+    setLockedUI(true);
+  } else {
+    setLockedUI(false);
+  }
+}
+
+function saveDrinkerToStorage(name) {
+  localStorage.setItem(DRINKER_STORAGE_KEY, name);
+}
+
+function clearDrinkerStorage() {
+  localStorage.removeItem(DRINKER_STORAGE_KEY);
+}
+
+// Button handlers
+lockDrinkerBtn.addEventListener("click", () => {
+  const name = normalizeName(drinkerInput.value);
+  if (!name) {
+    alert("Please enter your name before locking it in.");
+    return;
+  }
+  drinkerInput.value = name;
+  saveDrinkerToStorage(name);
+  setLockedUI(true);
+});
+
+changeDrinkerBtn.addEventListener("click", () => {
+  // keep old value visible but allow editing
+  clearDrinkerStorage();
+  setLockedUI(false);
+  drinkerInput.focus();
+});
+
+// init on page load
+window.addEventListener("DOMContentLoaded", () => {
+  loadDrinkerFromStorage();
+});
+
+
+// ---- Beer Admin ----
+const beerAdminForm = document.getElementById("beerAdminForm");
+const beerAdminStatus = document.getElementById("beerAdminStatus");
+
+function normalizeText(s) {
+  return (s ?? "").trim().replace(/\s+/g, " ");
+}
+
+beerAdminForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+
+  const name = normalizeText(document.getElementById("beerName").value);
+  const brewery = normalizeText(document.getElementById("breweryName").value);
+  const style = normalizeText(document.getElementById("beerStyle").value);
+  const price_class = document.getElementById("priceClass").value;
+  const abv = parseFloat(document.getElementById("beerAbv").value);
+
+  if (!name || !brewery || !style) {
+    beerAdminStatus.textContent = "Name, brewery, and style are required.";
+    return;
+  }
+  if (!Number.isFinite(abv) || abv < 0 || abv > 50) {
+    beerAdminStatus.textContent = "ABV must be a number between 0 and 50.";
     return;
   }
 
-  resultDiv.textContent = "Checking Untappd...";
-  
-  const { data, error } = await supabaseInstance.functions.invoke('hello-world', {
-    body: { name: 'prod' },
-  })
-  console.log(data)
-} );
+  beerAdminStatus.textContent = "Saving...";
 
-let data = [];
-let cumulativeVolume = 0;
-let lastRating = null;
+  // Insert (or do a safe upsert if you added the unique constraint)
+  const { data: inserted, error } = await supabaseInstance
+    .from("beers")
+    .insert([{
+      name,
+      brewery,
+      style,
+      price_class,
+      abv
+    }])
+    .select("id,name,brewery,style,price_class,abv")
+    .single();
 
+  if (error) {
+    // If you added UNIQUE(name, brewery), you might get duplicates:
+    // you can switch to upsert (see below) or show a nicer message.
+    beerAdminStatus.textContent = "Error: " + error.message;
+    console.error(error);
+    return;
+  }
+
+  beerAdminStatus.textContent = `Added: ${inserted.name} (${inserted.brewery})`;
+
+  // Refresh the autocomplete list if you have loadBeers()
+  if (typeof loadBeers === "function") {
+    await loadBeers();
+  }
+
+  beerAdminForm.reset();
+  document.getElementById("beerName").focus();
+});
+
+// ---------- UI elements ----------
 const form = document.getElementById("entryForm");
 const tableBody = document.querySelector("#log tbody");
 
-form.onsubmit = async (e) => {
-  e.preventDefault();
+const beerInput = document.getElementById("beer");
+const beerOptions = document.getElementById("beerOptions");
 
-  const drinker = document.getElementById("drinker").value;
-  const beer = document.getElementById("beer").value;
-  const volume = parseFloat(document.getElementById("volume").value);
-  const rating = parseFloat(document.getElementById("rating").value);
+// ---------- app state ----------
+let data = [];
 
-  cumulativeVolume += volume;
+// local cache: normalizedName -> { id, name }
+const beerCache = new Map();
 
-  const row = {
-    n: data.length + 1,
-    drinker,
-    beer,
-    volume,
-    cumulativeVolume,
-    Y_lag: lastRating,
-    rating
-  };
+// ---------- helpers ----------
+function normalizeBeerName(name) {
+  return name.trim().replace(/\s+/g, " ");
+}
 
-  // Save to Supabase
-  const { error } = await supabaseInstance
-    .from('beer_ratings')
-    .insert([{
-      drinker: row.drinker,
-      beer: row.beer,
-      volume: row.volume,
-      cum_volume: row.cumulativeVolume,
-      Y_lag: row.Y_lag,
-      rating: row.rating
-    }]);
+function setStatus(el, msg) {
+  if (!el) return;
+  el.textContent = msg;
+}
+
+// ---------- load beers into datalist ----------
+async function loadBeers() {
+  // Pull a reasonable number; paginate later if you get big.
+  const { data: beers, error } = await supabaseInstance
+    .from("beers")
+    .select("id,name")
+    .order("name", { ascending: true })
+    .limit(1000);
 
   if (error) {
-    alert('Error saving to database: ' + error.message);
+    console.error("Error loading beers:", error);
     return;
   }
 
-  data.push(row);
-  lastRating = rating;
+  beerCache.clear();
+  beerOptions.innerHTML = "";
 
-  render();
-  form.reset();
-};
+  for (const b of beers ?? []) {
+    const n = normalizeBeerName(b.name);
+    beerCache.set(n.toLowerCase(), { id: b.id, name: n });
 
+    const opt = document.createElement("option");
+    opt.value = n;
+    beerOptions.appendChild(opt);
+  }
+}
 
+// Insert beer if missing, return its row {id,name}
+async function getOrCreateBeer(beerNameRaw) {
+  const name = normalizeBeerName(beerNameRaw);
+  const key = name.toLowerCase();
+
+  // Fast path: already cached
+  const cached = beerCache.get(key);
+  if (cached) return cached;
+
+  // 1) Try fetch by exact match (case-insensitive is trickier; simplest is store normalized lowercase too)
+  // If you didn't add a normalized column, do exact match first:
+  const { data: existing, error: findErr } = await supabaseInstance
+    .from("beers")
+    .select("id,name")
+    .eq("name", name)
+    .maybeSingle();
+
+  if (findErr) {
+    console.error("Error checking beer:", findErr);
+    throw new Error(findErr.message);
+  }
+
+  if (existing) {
+    const n = normalizeBeerName(existing.name);
+    const row = { id: existing.id, name: n };
+    beerCache.set(key, row);
+    addBeerOptionIfMissing(n);
+    return row;
+  }
+
+  // 2) Not found -> insert
+  const { data: inserted, error: insErr } = await supabaseInstance
+    .from("beers")
+    .insert([{ name }])
+    .select("id,name")
+    .single();
+
+  if (insErr) {
+    // If two users add same beer concurrently, unique constraint might trip.
+    // Handle that by re-querying once.
+    if (String(insErr.message || "").toLowerCase().includes("duplicate")) {
+      const { data: again, error: againErr } = await supabaseInstance
+        .from("beers")
+        .select("id,name")
+        .eq("name", name)
+        .single();
+      if (againErr) throw new Error(againErr.message);
+      const row = { id: again.id, name: normalizeBeerName(again.name) };
+      beerCache.set(key, row);
+      addBeerOptionIfMissing(row.name);
+      return row;
+    }
+    console.error("Error inserting beer:", insErr);
+    throw new Error(insErr.message);
+  }
+
+  const row = { id: inserted.id, name: normalizeBeerName(inserted.name) };
+  beerCache.set(key, row);
+  addBeerOptionIfMissing(row.name);
+  return row;
+}
+
+function addBeerOptionIfMissing(name) {
+  // Keep datalist updated without full reload
+  const existing = [...beerOptions.children].some(opt => opt.value === name);
+  if (!existing) {
+    const opt = document.createElement("option");
+    opt.value = name;
+    beerOptions.appendChild(opt);
+  }
+}
+
+// ---------- render ----------
 function render() {
   tableBody.innerHTML = "";
   data.forEach(r => {
@@ -188,14 +470,78 @@ function render() {
       <td>${r.drinker}</td>
       <td>${r.beer}</td>
       <td>${r.volume}</td>
-      <td>${r.cumulativeVolume}</td>
-      <td>${r.Y_lag ?? "-"}</td>
       <td>${r.rating}</td>
     `;
     tableBody.appendChild(tr);
   });
 }
+
+// ---------- init ----------
+window.addEventListener("DOMContentLoaded", async () => {
+  await loadBeers();
+});
+
+// ---------- form submit ----------
+form.onsubmit = async (e) => {
+  e.preventDefault();
+
+  const drinker = document.getElementById("drinker").value.trim();
+  const beerName = beerInput.value.trim();
+  const volume = parseFloat(document.getElementById("volume").value);
+  const rating = parseFloat(document.getElementById("rating").value);
+
+  if (!drinker) return alert("Drinker is required.");
+  if (!beerName) return alert("Beer name is required.");
+  if (!Number.isFinite(volume) || volume < 0) return alert("Volume must be a non-negative number.");
+  if (!Number.isFinite(rating) || rating < 0 || rating > 10) return alert("Rating must be between 0 and 10.");
+
+  let beerRow;
+  try {
+    beerRow = await getOrCreateBeer(beerName);
+  } catch (err) {
+    alert("Could not add/find beer: " + err.message);
+    return;
+  }
+
+
+  const row = {
+    n: data.length + 1,
+    drinker,
+    beer: beerRow.name,
+    volume,
+    rating
+  };
+
+  // Save rating row referencing beer_id
+  const { error } = await supabaseInstance
+    .from('beer_ratings')
+    .insert([{
+      drinker: row.drinker,
+      beer_id: beerRow.id,
+      volume: row.volume,
+      rating: row.rating
+    }]);
+
+  if (error) {
+    alert('Error saving to database: ' + error.message);
+    return;
+  }
+
+  data.push(row);
+
+  render();
+
+  // Reset only volume/rating; keep drinker for convenience if you want
+  document.getElementById("volume").value = "";
+  document.getElementById("rating").value = "";
+  beerInput.value = "";
+  beerInput.focus();
+};
+
+// ---------- export / clear ----------
 document.getElementById("download").onclick = () => {
+  if (!data.length) return alert("Nothing to export yet.");
+
   const header = Object.keys(data[0]).join(",");
   const rows = data.map(r => Object.values(r).join(","));
   const csv = [header, ...rows].join("\n");
@@ -211,12 +557,10 @@ document.getElementById("download").onclick = () => {
 
 document.getElementById("clear").onclick = () => {
   data = [];
-  cumulativeVolume = 0;
-  lastRating = null;
   render();
 };
-
 </script>
+
 
 </body>
 </html>
